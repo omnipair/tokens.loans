@@ -99,94 +99,38 @@ function getAssetFallback(symbol: string) {
 const protocolBrandMeta: Record<
   ProtocolName,
   {
+    logoUrl: string;
     tone: string;
-    foreground?: string;
   }
 > = {
   Kamino: {
+    logoUrl: "/protocols/kamino.png",
     tone: "linear-gradient(145deg, rgba(127, 255, 137, 0.22), rgba(56, 226, 154, 0.14))",
-    foreground: "#0c1710",
   },
   marginfi: {
+    logoUrl: "/protocols/marginfi.svg",
     tone: "linear-gradient(145deg, rgba(255, 236, 184, 0.32), rgba(255, 204, 102, 0.14))",
   },
   Save: {
+    logoUrl: "/protocols/save.svg",
     tone: "linear-gradient(145deg, rgba(129, 227, 255, 0.24), rgba(59, 168, 255, 0.12))",
   },
   Drift: {
+    logoUrl: "/protocols/drift.svg",
     tone: "linear-gradient(145deg, rgba(173, 255, 236, 0.26), rgba(82, 215, 211, 0.14))",
   },
   Loopscale: {
+    logoUrl: "/protocols/loopscale.svg",
     tone: "linear-gradient(145deg, rgba(218, 255, 142, 0.24), rgba(184, 255, 55, 0.12))",
-    foreground: "#0a120d",
   },
   Omnipair: {
+    logoUrl: "/protocols/omnipair.png",
     tone: "linear-gradient(145deg, rgba(231, 244, 255, 0.9), rgba(205, 225, 255, 0.64))",
-    foreground: "#11264a",
   },
 };
 
-function ProtocolGlyph({ protocol }: { protocol: ProtocolName }) {
-  switch (protocol) {
-    case "Kamino":
-      return (
-        <svg aria-hidden="true" viewBox="0 0 40 40" className="protocol-glyph">
-          <path d="M12 8V32" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
-          <path d="M15.5 20L28 8.5" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
-          <path d="M15.5 20L28.5 31.5" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
-        </svg>
-      );
-    case "marginfi":
-      return (
-        <svg aria-hidden="true" viewBox="0 0 512 512" className="protocol-glyph">
-          <circle cx="256" cy="256" r="256" fill="#0A0B0B" />
-          <g fill="#C4C6BF">
-            <path d="M380.13 231.674H266.519V345.674H380.13Z" />
-            <path d="M266.519 120.326C248.392 122.065 231.072 122.427 215.513 133.006C200.366 144.014 189.24 159.573 183.807 177.351C180.194 190.81 174.606 203.675 167.221 215.537C163.919 220.768 159.354 225.107 153.936 228.168C148.518 231.228 142.416 232.914 136.176 233.073H131.772V345.674H140.213C158.341 343.936 175.587 343.645 191.22 333.066C206.33 322.006 217.423 306.43 222.852 288.649C229.237 268.94 235.329 249.811 252.723 236.84C255.944 234.836 259.581 233.573 263.364 233.145H266.372Z" />
-          </g>
-        </svg>
-      );
-    case "Save":
-      return (
-        <svg aria-hidden="true" viewBox="0 0 40 38" className="protocol-glyph">
-          <path
-            d="M30.9704 2.49828C29.2498 1.39023 27.3434 0.543703 25.3063 0C22.5821 2.61336 19.7284 4.83175 16.5463 6.03574C16.2522 6.14706 15.9289 5.98396 15.8319 5.68475L14.2739 0.880936C14.15 0.502409 13.7371 0.289057 13.3655 0.433586C11.2939 1.21129 9.36683 2.42257 7.51548 3.88851C3.19339 7.3159 0.302822 12.3331 0.0275292 17.8458C0.0137646 18.1693 0 18.4928 0 18.8162C0 19.0778 0.00688231 19.3462 0.0206469 19.6077C0.501953 19.0911 0.982035 18.5709 1.4621 18.0506C5.79686 13.3531 10.1299 8.65745 15.3462 6.68291C15.6404 6.57154 15.9637 6.73462 16.0608 7.03386L17.6187 11.8376C17.7426 12.2161 18.1555 12.4295 18.5272 12.2849C23.1659 10.5437 27.1094 6.64143 30.9635 2.50516L30.9704 2.49828ZM34.5067 7.09406L34.5051 7.09573C30.1633 11.8029 25.8199 16.5117 20.5932 18.4931C20.299 18.6047 19.9754 18.4416 19.8784 18.1422L18.3205 13.3388C18.1966 12.9603 17.7837 12.7469 17.412 12.8915C12.1782 14.8579 7.83221 19.5713 3.48692 24.284C2.84395 24.9813 2.20099 25.6786 1.55518 26.367C2.34664 28.1977 3.4134 29.8908 4.70728 31.3911C4.97029 31.1068 5.2331 30.8219 5.49589 30.537C9.83654 25.8311 14.1737 21.1289 19.3994 19.1481C19.6937 19.0365 20.0172 19.1996 20.1143 19.4989L21.6722 24.3024C21.7961 24.6809 22.209 24.8942 22.5806 24.7497C27.8325 22.7728 32.1872 18.0467 36.5425 13.3199L36.543 13.3194C37.1759 12.6325 37.8087 11.9457 38.4444 11.2673C37.6529 9.43656 36.5862 7.74351 35.2923 6.25004V6.24316C35.0303 6.52639 34.7685 6.81022 34.5067 7.09406ZM39.9799 19.8008C39.6908 25.4718 36.635 30.5854 32.1409 34.0541H32.1478C30.4272 35.3824 28.624 36.4766 26.7108 37.2062C26.6935 37.213 26.678 37.2182 26.6626 37.2234C26.6471 37.2285 26.6316 37.2337 26.6144 37.2406C26.2496 37.3576 25.8505 37.1511 25.7335 36.7863L24.1757 31.9832C24.0786 31.6837 23.7549 31.5207 23.4606 31.6324C20.3217 32.8247 17.499 35.0056 14.8052 37.5735C14.7577 37.6188 14.6899 37.6363 14.6265 37.6191C12.7025 37.0947 10.8964 36.2938 9.24896 35.2688C9.14908 35.2067 9.13165 35.0689 9.21193 34.9829C13.0169 30.9087 16.9102 27.1003 21.4802 25.3824C21.8518 25.2378 22.2648 25.4512 22.3887 25.8297L23.9466 30.6334C24.0437 30.9327 24.367 31.0957 24.6612 30.9844C29.8775 29.0098 34.2105 24.3142 38.5453 19.6167C39.0253 19.0964 39.5054 18.5762 39.9867 18.0596C40.0005 18.3073 40.0074 18.562 40.0074 18.8166C40.0074 19.147 39.9936 19.4773 39.9799 19.8008Z"
-            fill="#F77B43"
-          />
-        </svg>
-      );
-    case "Drift":
-      return (
-        <svg aria-hidden="true" viewBox="0 0 16 16" className="protocol-glyph">
-          <path d="M0 8C0 3.58172 3.58172 0 8 0C12.4183 0 16 3.58172 16 8C16 12.4183 12.4183 16 8 16C3.58172 16 0 12.4183 0 8Z" fill="#030305" />
-          <path d="M11.7491 11.548C11.7491 11.9395 11.6032 12.2828 11.369 12.546C11.3663 12.5491 11.3643 12.5529 11.3635 12.557C11.36 12.5738 11.375 12.5886 11.3917 12.5845C12.067 12.4181 12.613 11.8413 12.613 11.0839V7.15719C12.613 5.99643 11.9646 4.92384 10.9122 4.34346L6.6625 2L5.82067 2.47632L10.0482 4.8076C11.1007 5.38798 11.7491 6.46057 11.7491 7.62134V11.548Z" fill="#fff" />
-          <path d="M10.5612 12.2185V8.29177C10.5612 7.13101 9.91285 6.05842 8.86038 5.47804L4.6328 3.14675L5.47462 2.67043L9.72428 5.01389C10.7768 5.59427 11.4251 6.66686 11.4251 7.82762V11.7543C11.4251 12.5118 10.8791 13.0886 10.2039 13.255C10.1872 13.2591 10.1721 13.2443 10.1756 13.2274C10.1765 13.2233 10.1784 13.2196 10.1812 13.2165C10.4153 12.9532 10.5612 12.61 10.5612 12.2185Z" fill="#fff" />
-          <path d="M3.39093 3.84918L4.24373 3.36665L8.49339 5.71011C9.54586 6.29049 10.1942 7.36308 10.1942 8.52384V12.4699L10.1941 12.4698C10.1796 13.6496 8.83851 14.3827 7.76446 13.7904L3.91288 11.6665L3.39093 11.386V3.84918ZM9.3303 9.00024V11.2798L6.4686 9.70176V5.54635L7.62948 6.18651C8.68195 6.76689 9.3303 7.83948 9.3303 9.00024ZM5.38872 4.95085L5.82067 5.18905V10.0588L5.86602 10.0831L9.3303 11.9935V12.4345L5.39429 10.264L5.38872 10.2672V4.95085ZM4.68679 4.56377V10.6418L4.70709 10.6528L4.68679 10.6643L9.32499 13.222C9.28622 13.426 9.04255 13.5424 8.84435 13.4331L4.25484 10.9022V4.32557L4.68679 4.56377Z" fill="#fff" />
-        </svg>
-      );
-    case "Loopscale":
-      return (
-        <svg aria-hidden="true" viewBox="0 0 96 96" className="protocol-glyph">
-          <path d="M28 28V68H54" stroke="currentColor" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M60 34C65.523 34 70 38.477 70 44V62" stroke="currentColor" strokeWidth="10" strokeLinecap="round" />
-          <circle cx="70" cy="68" r="8" fill="currentColor" />
-        </svg>
-      );
-    case "Omnipair":
-      return (
-        <svg aria-hidden="true" viewBox="0 0 40 40" className="protocol-glyph">
-          <circle cx="15" cy="20" r="7" fill="none" stroke="currentColor" strokeWidth="3.5" />
-          <path d="M21 13H25C28.3137 13 31 15.6863 31 19V21C31 24.3137 28.3137 27 25 27H21" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-          <path d="M18 20H22" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
-        </svg>
-      );
-    default:
-      return (
-        <svg aria-hidden="true" viewBox="0 0 40 40" className="protocol-glyph">
-          <circle cx="20" cy="20" r="14" fill="none" stroke="currentColor" strokeWidth="3.5" />
-        </svg>
-      );
-  }
+function getProtocolFallback(protocol: ProtocolName) {
+  return protocol.replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase();
 }
 
 async function writeToClipboard(value: string) {
@@ -269,16 +213,22 @@ function AssetMark({ symbol, iconUrl }: { symbol: string; iconUrl?: string | nul
 }
 
 function ProtocolMark({ protocol, size = "md" }: { protocol: ProtocolName; size?: "sm" | "md" | "lg" }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const brand = protocolBrandMeta[protocol];
 
   return (
-    <span
-      className={`protocol-mark protocol-mark-${size}`}
-      style={{ background: brand.tone, color: brand.foreground ?? "#0c1410" }}
-      aria-label={`${protocol} logo`}
-      role="img"
-    >
-      <ProtocolGlyph protocol={protocol} />
+    <span className={`protocol-mark protocol-mark-${size}`} style={{ background: brand.tone }}>
+      {!imageFailed ? (
+        <img
+          src={brand.logoUrl}
+          alt={`${protocol} logo`}
+          loading="lazy"
+          decoding="async"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span>{getProtocolFallback(protocol)}</span>
+      )}
     </span>
   );
 }
