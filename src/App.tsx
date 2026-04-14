@@ -1,6 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { assetUniverse, enrichAsset, protocolNames, sectorLabels, statusMeta, tierOrder, universeMeta } from "./data";
-import type { AccessStatus, EnrichedAsset, SectorKey } from "./types";
+import type { AccessStatus, EnrichedAsset, ProtocolName, SectorKey } from "./types";
 
 type StatusFilter = AccessStatus | "all";
 type SectorFilter = SectorKey | "all";
@@ -51,10 +51,6 @@ function statusShare(count: number, total: number) {
   return total === 0 ? 0 : (count / total) * 100;
 }
 
-function badgeList(items: string[]) {
-  return items.length ? items.join(" · ") : "—";
-}
-
 function shortAddress(address: string) {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
@@ -98,6 +94,43 @@ function formatSignedPercent(value: number | null | undefined) {
 function getAssetFallback(symbol: string) {
   const cleaned = symbol.replace(/[^a-z0-9]/gi, "");
   return cleaned.slice(0, 2).toUpperCase() || "?";
+}
+
+const protocolBrandMeta: Record<
+  ProtocolName,
+  {
+    logoUrl: string;
+    tone: string;
+  }
+> = {
+  Kamino: {
+    logoUrl: "/protocols/kamino.png",
+    tone: "linear-gradient(145deg, rgba(127, 255, 137, 0.22), rgba(56, 226, 154, 0.14))",
+  },
+  marginfi: {
+    logoUrl: "/protocols/marginfi.svg",
+    tone: "linear-gradient(145deg, rgba(255, 236, 184, 0.32), rgba(255, 204, 102, 0.14))",
+  },
+  Save: {
+    logoUrl: "/protocols/save.png",
+    tone: "linear-gradient(145deg, rgba(129, 227, 255, 0.24), rgba(59, 168, 255, 0.12))",
+  },
+  Drift: {
+    logoUrl: "/protocols/drift.svg",
+    tone: "linear-gradient(145deg, rgba(173, 255, 236, 0.26), rgba(82, 215, 211, 0.14))",
+  },
+  Loopscale: {
+    logoUrl: "/protocols/loopscale.ico",
+    tone: "linear-gradient(145deg, rgba(218, 255, 142, 0.24), rgba(184, 255, 55, 0.12))",
+  },
+  Omnipair: {
+    logoUrl: "/protocols/omnipair.png",
+    tone: "linear-gradient(145deg, rgba(231, 244, 255, 0.9), rgba(205, 225, 255, 0.64))",
+  },
+};
+
+function getProtocolFallback(protocol: ProtocolName) {
+  return protocol.replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase();
 }
 
 async function writeToClipboard(value: string) {
@@ -177,6 +210,44 @@ function AssetMark({ symbol, iconUrl }: { symbol: string; iconUrl?: string | nul
   }
 
   return <div className="asset-mark">{getAssetFallback(symbol)}</div>;
+}
+
+function ProtocolMark({ protocol, size = "md" }: { protocol: ProtocolName; size?: "sm" | "md" | "lg" }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const brand = protocolBrandMeta[protocol];
+
+  return (
+    <span className={`protocol-mark protocol-mark-${size}`} style={{ background: brand.tone }}>
+      {!imageFailed ? (
+        <img
+          src={brand.logoUrl}
+          alt={`${protocol} logo`}
+          loading="lazy"
+          decoding="async"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span>{getProtocolFallback(protocol)}</span>
+      )}
+    </span>
+  );
+}
+
+function ProtocolBadgeList({ items }: { items: ProtocolName[] }) {
+  if (!items.length) {
+    return <span className="protocol-empty">—</span>;
+  }
+
+  return (
+    <div className="protocol-badge-list">
+      {items.map((protocol) => (
+        <span key={protocol} className="protocol-badge">
+          <ProtocolMark protocol={protocol} size="sm" />
+          <span>{protocol}</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function rankAssets(assets: EnrichedAsset[]) {
@@ -644,6 +715,7 @@ function App() {
               <article key={item.protocol} className="protocol-row">
                 <div className="protocol-row-head">
                   <span className="protocol-rank">{String(index + 1).padStart(2, "0")}</span>
+                  <ProtocolMark protocol={item.protocol} size="lg" />
                   <div className="protocol-copy">
                     <strong>{item.protocol}</strong>
                     <p>
@@ -800,8 +872,12 @@ function App() {
                     <td data-label="Status">
                       <span className={`status-pill status-${asset.status}`}>{statusMeta[asset.status].label}</span>
                     </td>
-                    <td data-label="Collateral on">{badgeList(asset.collateralProtocols)}</td>
-                    <td data-label="Borrowable on">{badgeList(asset.borrowableProtocols)}</td>
+                    <td data-label="Collateral on">
+                      <ProtocolBadgeList items={asset.collateralProtocols} />
+                    </td>
+                    <td data-label="Borrowable on">
+                      <ProtocolBadgeList items={asset.borrowableProtocols} />
+                    </td>
                     <td data-label="Presence">{asset.marketPresence}</td>
                     <td data-label="Why it matters" className="note-cell">{asset.note}</td>
                   </tr>
