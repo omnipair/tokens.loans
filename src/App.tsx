@@ -112,7 +112,7 @@ const protocolBrandMeta: Record<
     tone: "linear-gradient(145deg, rgba(255, 236, 184, 0.32), rgba(255, 204, 102, 0.14))",
   },
   Save: {
-    logoUrl: "/protocols/save.png",
+    logoUrl: "/protocols/save.svg",
     tone: "linear-gradient(145deg, rgba(129, 227, 255, 0.24), rgba(59, 168, 255, 0.12))",
   },
   Drift: {
@@ -120,7 +120,7 @@ const protocolBrandMeta: Record<
     tone: "linear-gradient(145deg, rgba(173, 255, 236, 0.26), rgba(82, 215, 211, 0.14))",
   },
   Loopscale: {
-    logoUrl: "/protocols/loopscale.ico",
+    logoUrl: "/protocols/loopscale.svg",
     tone: "linear-gradient(145deg, rgba(218, 255, 142, 0.24), rgba(184, 255, 55, 0.12))",
   },
   Omnipair: {
