@@ -12,6 +12,18 @@ function formatPercent(value: number, digits = 0) {
   return `${value.toFixed(digits)}%`;
 }
 
+function formatShare(value: number) {
+  if (value === 0) {
+    return "0%";
+  }
+
+  if (value < 0.1) {
+    return `${value.toFixed(2)}%`;
+  }
+
+  return `${value.toFixed(1)}%`;
+}
+
 function formatCount(value: number) {
   return new Intl.NumberFormat("en").format(value);
 }
@@ -206,11 +218,15 @@ function App() {
     const protocolCoverage = protocolNames.map((protocol) => {
       const collateralCount = allAssets.filter((asset) => asset.collateralProtocols.includes(protocol)).length;
       const borrowCount = allAssets.filter((asset) => asset.borrowableProtocols.includes(protocol)).length;
+      const reachableCount = allAssets.filter(
+        (asset) => asset.collateralProtocols.includes(protocol) || asset.borrowableProtocols.includes(protocol),
+      ).length;
 
       return {
         protocol,
         collateralCount,
         borrowCount,
+        reachableCount,
       };
     });
 
@@ -240,23 +256,47 @@ function App() {
   }, []);
 
   const stackEntries = useMemo(() => {
-    const minimumVisualWeight = allAssets.length * 0.02;
-    const entries = (Object.keys(statusMeta) as AccessStatus[]).map((status) => {
+    return (Object.keys(statusMeta) as AccessStatus[]).map((status) => {
       const count = summary.statusCounts[status];
+
       return {
         status,
         count,
         share: statusShare(count, allAssets.length),
-        visualWeight: count ? Math.max(count, minimumVisualWeight) : 0,
       };
     });
-    const visualTotal = entries.reduce((sum, entry) => sum + entry.visualWeight, 0);
-
-    return entries.map((entry) => ({
-      ...entry,
-      visualWidth: visualTotal === 0 ? 0 : (entry.visualWeight / visualTotal) * 100,
-    }));
   }, [summary.statusCounts]);
+
+  const supportedCount = allAssets.length - summary.statusCounts.excluded;
+  const supportedShare = statusShare(supportedCount, allAssets.length);
+
+  const supportedEntries = useMemo(
+    () =>
+      stackEntries
+        .filter((entry) => entry.status !== "excluded")
+        .map((entry) => ({
+          ...entry,
+          supportedShare: statusShare(entry.count, supportedCount),
+        })),
+    [stackEntries, supportedCount],
+  );
+
+  const protocolRows = useMemo(
+    () =>
+      [...summary.protocolCoverage].sort(
+        (left, right) =>
+          right.reachableCount - left.reachableCount ||
+          right.collateralCount - left.collateralCount ||
+          right.borrowCount - left.borrowCount,
+      ),
+    [summary.protocolCoverage],
+  );
+
+  const protocolMaxCollateral = useMemo(
+    () => Math.max(...protocolRows.map((item) => item.collateralCount), 1),
+    [protocolRows],
+  );
+  const protocolMaxBorrow = useMemo(() => Math.max(...protocolRows.map((item) => item.borrowCount), 1), [protocolRows]);
 
   const focusedStatus = hoveredStatus ?? (statusFilter === "all" ? "excluded" : statusFilter);
 
@@ -431,23 +471,90 @@ function App() {
               </button>
             </div>
 
-            <div className="stack-shell">
-              <div className="stacked-bar" role="list" aria-label="Active token lending coverage breakdown">
-                {stackEntries.map((entry) => {
-                  const selected = statusFilter === entry.status;
-                  const active = focusedStatus === entry.status;
+            <div className="coverage-grid">
+              <div className="coverage-exact">
+                <div className="coverage-snapshot">
+                  <article className="coverage-stat-card coverage-stat-card-dark">
+                    <span className="signal-label">Excluded everywhere</span>
+                    <strong>{formatCount(summary.statusCounts.excluded)}</strong>
+                    <p>{formatShare(excludedShare)} of active Solana tokens still sit outside every tracked venue.</p>
+                  </article>
+                  <article className="coverage-stat-card coverage-stat-card-light">
+                    <span className="signal-label">Supported anywhere</span>
+                    <strong>{formatCount(supportedCount)}</strong>
+                    <p>{formatShare(supportedShare)} make it into at least one collateral or borrow market.</p>
+                  </article>
+                </div>
 
-                  return (
+                <div className="coverage-scale-card">
+                  <div className="coverage-scale-head">
+                    <div>
+                      <p className="eyebrow">Exact share of all active tokens</p>
+                      <h3>The top bar stays honest at full-universe scale.</h3>
+                    </div>
+                    <span className="coverage-total">{formatCount(allAssets.length)} tokens</span>
+                  </div>
+
+                  <div className="coverage-track" role="img" aria-label="Exact share of all active tokens by lending coverage status">
+                    {stackEntries.map((entry) => (
+                      <span
+                        key={entry.status}
+                        className={`coverage-track-segment ${focusedStatus === entry.status ? "active" : ""}`}
+                        style={{
+                          width: `${entry.share}%`,
+                          background: statusMeta[entry.status].color,
+                        }}
+                        title={`${statusMeta[entry.status].label}: ${formatCount(entry.count)} tokens (${formatShare(entry.share)})`}
+                      />
+                    ))}
+                  </div>
+
+                  <p className="stack-caption">
+                    Exact widths above. Use the filters below to inspect rare categories without inflating them.
+                  </p>
+
+                  <div className="stack-legend">
+                    {stackEntries.map((entry) => (
+                      <button
+                        key={entry.status}
+                        type="button"
+                        className={`legend-chip ${focusedStatus === entry.status ? "active" : ""}`}
+                        onMouseEnter={() => setHoveredStatus(entry.status)}
+                        onMouseLeave={() => setHoveredStatus(null)}
+                        onFocus={() => setHoveredStatus(entry.status)}
+                        onBlur={() => setHoveredStatus(null)}
+                        onClick={() =>
+                          startTransition(() => {
+                            setStatusFilter((current) => (current === entry.status ? "all" : entry.status));
+                          })
+                        }
+                      >
+                        <span className="legend-dot" style={{ background: statusMeta[entry.status].color }} />
+                        {statusMeta[entry.status].label}
+                        <span className="legend-metric">
+                          {formatCount(entry.count)} · {formatShare(entry.share)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <article className="coverage-zoom-card">
+                <div className="coverage-scale-head">
+                  <div>
+                    <p className="eyebrow">Zoom on the supported slice</p>
+                    <h3>Most supported tokens still cluster into a very small pool.</h3>
+                  </div>
+                  <span className="coverage-total">{formatCount(supportedCount)} tokens</span>
+                </div>
+
+                <div className="coverage-breakout-list">
+                  {supportedEntries.map((entry) => (
                     <button
                       key={entry.status}
                       type="button"
-                      role="listitem"
-                      className={`stack-segment ${active ? "active" : ""} ${selected ? "selected" : ""}`}
-                      style={{
-                        width: `${entry.visualWidth}%`,
-                        background: statusMeta[entry.status].color,
-                        color: entry.status === "excluded" ? "#ecfff8" : "#06130f",
-                      }}
+                      className={`coverage-breakout-row ${focusedStatus === entry.status ? "active" : ""} ${statusFilter === entry.status ? "selected" : ""}`}
                       onMouseEnter={() => setHoveredStatus(entry.status)}
                       onMouseLeave={() => setHoveredStatus(null)}
                       onFocus={() => setHoveredStatus(entry.status)}
@@ -458,39 +565,30 @@ function App() {
                         })
                       }
                     >
-                      <span>{statusMeta[entry.status].short}</span>
-                      <strong>{formatCount(entry.count)}</strong>
+                      <div className="coverage-breakout-head">
+                        <div className="coverage-breakout-label">
+                          <span className="legend-dot" style={{ background: statusMeta[entry.status].color }} />
+                          <strong>{statusMeta[entry.status].label}</strong>
+                        </div>
+                        <div className="coverage-breakout-metrics">
+                          <span>{formatCount(entry.count)} tokens</span>
+                          <span>{formatShare(entry.supportedShare)} of supported</span>
+                        </div>
+                      </div>
+                      <div className="coverage-breakout-track" aria-hidden="true">
+                        <span
+                          className="coverage-breakout-fill"
+                          style={{
+                            width: `${entry.supportedShare}%`,
+                            background: statusMeta[entry.status].color,
+                          }}
+                        />
+                      </div>
+                      <span className="coverage-breakout-foot">{formatShare(entry.share)} of all active tokens</span>
                     </button>
-                  );
-                })}
-              </div>
-
-              <p className="stack-caption">
-                Segments use a minimum visual width so rare supported assets stay visible; counts and percentages are exact.
-              </p>
-
-              <div className="stack-legend">
-                {stackEntries.map((entry) => (
-                  <button
-                    key={entry.status}
-                    type="button"
-                    className={`legend-chip ${focusedStatus === entry.status ? "active" : ""}`}
-                    onMouseEnter={() => setHoveredStatus(entry.status)}
-                    onMouseLeave={() => setHoveredStatus(null)}
-                    onClick={() =>
-                      startTransition(() => {
-                        setStatusFilter((current) => (current === entry.status ? "all" : entry.status));
-                      })
-                    }
-                  >
-                    <span className="legend-dot" style={{ background: statusMeta[entry.status].color }} />
-                    {statusMeta[entry.status].label}
-                    <span className="legend-metric">
-                      {formatCount(entry.count)} · {formatPercent(entry.share, 1)}
-                    </span>
-                  </button>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </article>
             </div>
           </article>
 
@@ -541,33 +639,56 @@ function App() {
             </div>
           </div>
 
-          <div className="protocol-grid">
-            {summary.protocolCoverage.map((item) => {
-              const maxCoverage = Math.max(...summary.protocolCoverage.map((entry) => entry.collateralCount), 1);
-              const collateralHeight = (item.collateralCount / maxCoverage) * 100;
-              const borrowHeight = (item.borrowCount / maxCoverage) * 100;
-
-              return (
-                <article key={item.protocol} className="protocol-card">
-                  <div className="protocol-chart">
-                    <div className="protocol-bar-track">
-                      <span className="protocol-bar collateral" style={{ height: `${collateralHeight}%` }} />
-                      <span className="protocol-bar borrow" style={{ height: `${borrowHeight}%` }} />
-                    </div>
-                  </div>
+          <div className="protocol-list">
+            {protocolRows.map((item, index) => (
+              <article key={item.protocol} className="protocol-row">
+                <div className="protocol-row-head">
+                  <span className="protocol-rank">{String(index + 1).padStart(2, "0")}</span>
                   <div className="protocol-copy">
                     <strong>{item.protocol}</strong>
                     <p>
-                      {item.collateralCount} collateral listings · {formatPercent(statusShare(item.collateralCount, allAssets.length), 1)}
-                    </p>
-                    <p>
-                      {item.borrowCount} borrowable listings · {formatPercent(statusShare(item.borrowCount, allAssets.length), 1)}
+                      {formatCount(item.reachableCount)} supported tokens in snapshot ·{" "}
+                      {formatShare(statusShare(item.reachableCount, allAssets.length))} of active universe
                     </p>
                   </div>
-                </article>
-              );
-            })}
+                </div>
+
+                <div className="protocol-metric-grid">
+                  <div className="protocol-metric">
+                    <div className="protocol-metric-head">
+                      <span>Collateral</span>
+                      <strong>{formatCount(item.collateralCount)}</strong>
+                      <span>{formatShare(statusShare(item.collateralCount, allAssets.length))}</span>
+                    </div>
+                    <div className="protocol-meter" aria-hidden="true">
+                      <span
+                        className="protocol-meter-fill collateral"
+                        style={{ width: `${statusShare(item.collateralCount, protocolMaxCollateral)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="protocol-metric">
+                    <div className="protocol-metric-head">
+                      <span>Borrow</span>
+                      <strong>{formatCount(item.borrowCount)}</strong>
+                      <span>{formatShare(statusShare(item.borrowCount, allAssets.length))}</span>
+                    </div>
+                    <div className="protocol-meter" aria-hidden="true">
+                      <span
+                        className="protocol-meter-fill borrow"
+                        style={{ width: `${statusShare(item.borrowCount, protocolMaxBorrow)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
+
+          <p className="protocol-note">
+            Bar lengths are normalized to the most permissive venue in each column. The percentages stay anchored to the active universe.
+          </p>
         </section>
 
         <section className="surface table-panel" id="asset-table">
