@@ -481,7 +481,7 @@ async function fetchHeliusTokenMetadata(tokenAddresses, { heliusApiKey, heliusRp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
-          id: "borrowables-token-metadata",
+          id: "tokens-loans-token-metadata",
           method: "getAssetBatch",
           params: { ids: tokenChunk },
         }),

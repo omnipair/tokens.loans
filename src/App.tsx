@@ -332,14 +332,14 @@ function App() {
         <section className="hero-panel surface">
           <div className="hero-copy">
             <div className="hero-badges">
-              <span className="mini-badge">Borrowables</span>
+              <span className="mini-badge">tokens.loans</span>
               <span className="mini-badge subtle">Updated {formatDate(universeMeta.generatedAt)}</span>
             </div>
 
             <p className="eyebrow">Solana credit coverage</p>
             <h1>Most live Solana tokens still never make it into lending markets.</h1>
             <p className="hero-description">
-              Borrowables now starts from {formatCount(universeMeta.indexedTokenCount)} Jupiter-indexed Solana tokens,
+              tokens.loans now starts from {formatCount(universeMeta.indexedTokenCount)} Jupiter-indexed Solana tokens,
               filters out dead or inactive assets, and uses the surviving {formatCount(allAssets.length)}-token universe
               as the real denominator for Kamino, marginfi, Save, Drift, Loopscale, and Omnipair coverage.
             </p>
@@ -709,7 +709,7 @@ function App() {
         <section className="method-grid">
           <article className="surface method-card">
             <p className="eyebrow">Methodology</p>
-            <h2>Borrowables starts with the full Jupiter-indexed token universe, not a handpicked watchlist.</h2>
+            <h2>tokens.loans starts with the full Jupiter-indexed token universe, not a handpicked watchlist.</h2>
             <p>
               {formatCount(universeMeta.indexedTokenCount)} indexed tokens flowed into the pipeline. {formatCount(universeMeta.candidateTokenCount)} made the live candidate set through verification, routeability, trending, traded, organic, or recent surfaces, and {formatCount(allAssets.length)} remained after the dead-token filter.
             </p>
