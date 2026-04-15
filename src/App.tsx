@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { assetUniverse, enrichAsset, protocolNames, sectorLabels, statusMeta, tierOrder, universeMeta } from "./data";
 import type { AccessStatus, EnrichedAsset, ProtocolName, SectorKey } from "./types";
 
@@ -91,9 +91,82 @@ function formatSignedPercent(value: number | null | undefined) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
 function getAssetFallback(symbol: string) {
   const cleaned = symbol.replace(/[^a-z0-9]/gi, "");
   return cleaned.slice(0, 2).toUpperCase() || "?";
+}
+
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setPrefersReducedMotion(media.matches);
+
+    update();
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", update);
+      return () => media.removeEventListener("change", update);
+    }
+
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
+
+  return prefersReducedMotion;
+}
+
+function useAnimatedNumber(value: number, duration = 1100) {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [displayValue, setDisplayValue] = useState(prefersReducedMotion ? value : 0);
+  const previousValueRef = useRef(prefersReducedMotion ? value : 0);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      previousValueRef.current = value;
+      setDisplayValue(value);
+      return;
+    }
+
+    const from = previousValueRef.current;
+    const to = value;
+
+    if (Math.abs(to - from) < 0.001) {
+      previousValueRef.current = to;
+      setDisplayValue(to);
+      return;
+    }
+
+    let animationFrame = 0;
+    const startedAt = performance.now();
+
+    const tick = (now: number) => {
+      const progress = clamp((now - startedAt) / duration, 0, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const nextValue = from + (to - from) * eased;
+      setDisplayValue(nextValue);
+
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      previousValueRef.current = to;
+    };
+
+    animationFrame = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [duration, prefersReducedMotion, value]);
+
+  return displayValue;
 }
 
 const protocolBrandMeta: Record<
@@ -440,7 +513,7 @@ function App() {
       <div className="page-orb page-orb-b" />
 
       <main className="app-shell">
-        <section className="hero-panel surface">
+        <section className="hero-panel surface surface-hero">
           <div className="hero-copy">
             <div className="hero-badges">
               <span className="mini-badge">tokens.loans</span>
@@ -467,33 +540,41 @@ function App() {
                 Explore the asset map
               </button>
               <div className="hero-signal">
-                <strong>{formatPercent(excludedShare, 1)}</strong>
+                <strong>
+                  <AnimatedNumber value={excludedShare} formatter={(current) => formatPercent(current, 1)} />
+                </strong>
                 <span>of active Solana tokens are excluded everywhere</span>
               </div>
             </div>
           </div>
 
           <aside className="hero-aside">
-            <article className="signal-card strong">
+            <article className="signal-card strong surface-signal surface-signal-strong">
               <span className="signal-label">Focused status</span>
               <strong>{statusMeta[focusedStatus].label}</strong>
               <p>{statusMeta[focusedStatus].description}</p>
               <div className="signal-value-row">
                 <div>
                   <span>Assets</span>
-                  <strong>{formatCount(activeStatusCount)}</strong>
+                  <strong>
+                    <AnimatedNumber value={activeStatusCount} formatter={(current) => formatCount(Math.round(current))} />
+                  </strong>
                 </div>
                 <div>
                   <span>Share</span>
-                  <strong>{formatPercent(activeStatusShare, 1)}</strong>
+                  <strong>
+                    <AnimatedNumber value={activeStatusShare} formatter={(current) => formatPercent(current, 1)} />
+                  </strong>
                 </div>
               </div>
               <span className="signal-footnote">Examples: {featuredAssets.join(", ") || "No assets in this slice yet"}</span>
             </article>
 
-            <article className="signal-card">
+            <article className="signal-card surface-signal surface-signal-muted">
               <span className="signal-label">Universe filter</span>
-              <strong>{formatCount(allAssets.length)} active tokens retained</strong>
+              <strong>
+                <AnimatedNumber value={allAssets.length} formatter={(current) => `${formatCount(Math.round(current))} active tokens retained`} />
+              </strong>
               <p>
                 {formatPercent(filteredShare, 1)} of the {formatCount(universeMeta.indexedTokenCount)} indexed tokens
                 survived the dead-token filter.
@@ -503,27 +584,45 @@ function App() {
         </section>
 
         <section className="stats-grid">
-          <StatCard label="Indexed tokens" value={formatCompactNumber(universeMeta.indexedTokenCount)} detail="Full Jupiter Solana token cache" />
-          <StatCard label="Active after filter" value={formatCompactNumber(allAssets.length)} detail="Dead or inactive tokens removed" />
           <StatCard
+            className="stat-card-indexed"
+            label="Indexed tokens"
+            value={universeMeta.indexedTokenCount}
+            formatter={(current) => formatCompactNumber(Math.round(current))}
+            detail="Full Jupiter Solana token cache"
+          />
+          <StatCard
+            className="stat-card-active"
+            label="Active after filter"
+            value={allAssets.length}
+            formatter={(current) => formatCompactNumber(Math.round(current))}
+            detail="Dead or inactive tokens removed"
+          />
+          <StatCard
+            className="stat-card-collateral"
             label="Accepted as collateral"
-            value={formatCount(summary.collateralReach)}
+            value={summary.collateralReach}
+            formatter={(current) => formatCount(Math.round(current))}
             detail={`${formatPercent(statusShare(summary.collateralReach, allAssets.length), 1)} of the active universe`}
           />
           <StatCard
+            className="stat-card-borrow"
             label="Borrowable anywhere"
-            value={formatCount(summary.borrowReach)}
+            value={summary.borrowReach}
+            formatter={(current) => formatCount(Math.round(current))}
             detail={`${formatPercent(statusShare(summary.borrowReach, allAssets.length), 1)} of the active universe`}
           />
           <StatCard
+            className="stat-card-excluded"
             label="Excluded everywhere"
-            value={formatCount(summary.statusCounts.excluded)}
+            value={summary.statusCounts.excluded}
+            formatter={(current) => formatCount(Math.round(current))}
             detail={`${formatPercent(excludedShare, 1)} of active tokens`}
           />
         </section>
 
         <section className="story-grid">
-          <article className="surface chart-panel">
+          <article className="surface chart-panel surface-chart">
             <div className="panel-topline">
               <div>
                 <p className="eyebrow">Coverage split</p>
@@ -545,36 +644,48 @@ function App() {
             <div className="coverage-grid">
               <div className="coverage-exact">
                 <div className="coverage-snapshot">
-                  <article className="coverage-stat-card coverage-stat-card-dark">
+                  <article className="coverage-stat-card coverage-stat-card-dark coverage-stat-card-excluded">
                     <span className="signal-label">Excluded everywhere</span>
-                    <strong>{formatCount(summary.statusCounts.excluded)}</strong>
+                    <strong>
+                      <AnimatedNumber
+                        value={summary.statusCounts.excluded}
+                        formatter={(current) => formatCount(Math.round(current))}
+                      />
+                    </strong>
                     <p>{formatShare(excludedShare)} of active Solana tokens still sit outside every tracked venue.</p>
                   </article>
-                  <article className="coverage-stat-card coverage-stat-card-light">
+                  <article className="coverage-stat-card coverage-stat-card-light coverage-stat-card-supported">
                     <span className="signal-label">Supported anywhere</span>
-                    <strong>{formatCount(supportedCount)}</strong>
+                    <strong>
+                      <AnimatedNumber value={supportedCount} formatter={(current) => formatCount(Math.round(current))} />
+                    </strong>
                     <p>{formatShare(supportedShare)} make it into at least one collateral or borrow market.</p>
                   </article>
                 </div>
 
-                <div className="coverage-scale-card">
+                <div className="coverage-scale-card surface-lucid">
                   <div className="coverage-scale-head">
                     <div>
                       <p className="eyebrow">Exact share of all active tokens</p>
                       <h3>The top bar stays honest at full-universe scale.</h3>
                     </div>
-                    <span className="coverage-total">{formatCount(allAssets.length)} tokens</span>
+                    <span className="coverage-total">
+                      <AnimatedNumber value={allAssets.length} formatter={(current) => `${formatCount(Math.round(current))} tokens`} />
+                    </span>
                   </div>
 
                   <div className="coverage-track" role="img" aria-label="Exact share of all active tokens by lending coverage status">
-                    {stackEntries.map((entry) => (
+                    {stackEntries.map((entry, index) => (
                       <span
                         key={entry.status}
                         className={`coverage-track-segment ${focusedStatus === entry.status ? "active" : ""}`}
-                        style={{
-                          width: `${entry.share}%`,
-                          background: statusMeta[entry.status].color,
-                        }}
+                        style={
+                          {
+                            width: `${entry.share}%`,
+                            background: statusMeta[entry.status].color,
+                            "--segment-delay": `${index * 95}ms`,
+                          } as CSSProperties
+                        }
                         title={`${statusMeta[entry.status].label}: ${formatCount(entry.count)} tokens (${formatShare(entry.share)})`}
                       />
                     ))}
@@ -611,17 +722,19 @@ function App() {
                 </div>
               </div>
 
-              <article className="coverage-zoom-card">
+              <article className="coverage-zoom-card surface-nebula">
                 <div className="coverage-scale-head">
                   <div>
                     <p className="eyebrow">Zoom on the supported slice</p>
                     <h3>Most supported tokens still cluster into a very small pool.</h3>
                   </div>
-                  <span className="coverage-total">{formatCount(supportedCount)} tokens</span>
+                  <span className="coverage-total">
+                    <AnimatedNumber value={supportedCount} formatter={(current) => `${formatCount(Math.round(current))} tokens`} />
+                  </span>
                 </div>
 
                 <div className="coverage-breakout-list">
-                  {supportedEntries.map((entry) => (
+                  {supportedEntries.map((entry, index) => (
                     <button
                       key={entry.status}
                       type="button"
@@ -649,10 +762,13 @@ function App() {
                       <div className="coverage-breakout-track" aria-hidden="true">
                         <span
                           className="coverage-breakout-fill"
-                          style={{
-                            width: `${entry.supportedShare}%`,
-                            background: statusMeta[entry.status].color,
-                          }}
+                          style={
+                            {
+                              width: `${entry.supportedShare}%`,
+                              background: statusMeta[entry.status].color,
+                              "--segment-delay": `${180 + index * 110}ms`,
+                            } as CSSProperties
+                          }
                         />
                       </div>
                       <span className="coverage-breakout-foot">{formatShare(entry.share)} of all active tokens</span>
@@ -663,7 +779,7 @@ function App() {
             </div>
           </article>
 
-          <article className="surface detail-panel">
+          <article className="surface detail-panel surface-detail">
             <div className="panel-topline compact">
               <div>
                 <p className="eyebrow">Tier gradient</p>
@@ -679,7 +795,7 @@ function App() {
                     <span>{pluralize(group.total, "asset")}</span>
                   </div>
                   <div className="tier-bar">
-                    {(Object.keys(statusMeta) as AccessStatus[]).map((status) => {
+                    {(Object.keys(statusMeta) as AccessStatus[]).map((status, index) => {
                       const count = group.counts[status];
                       const share = statusShare(count, group.total);
 
@@ -687,10 +803,13 @@ function App() {
                         <span
                           key={status}
                           className={`tier-segment ${focusedStatus === status ? "active" : ""}`}
-                          style={{
-                            width: `${share}%`,
-                            background: statusMeta[status].color,
-                          }}
+                          style={
+                            {
+                              width: `${share}%`,
+                              background: statusMeta[status].color,
+                              "--segment-delay": `${index * 85}ms`,
+                            } as CSSProperties
+                          }
                           title={`${group.tier}: ${count} ${statusMeta[status].label.toLowerCase()}`}
                         />
                       );
@@ -702,7 +821,7 @@ function App() {
           </article>
         </section>
 
-        <section className="surface protocol-panel">
+        <section className="surface protocol-panel surface-protocol">
           <div className="panel-topline">
             <div>
               <p className="eyebrow">Protocol view</p>
@@ -712,15 +831,20 @@ function App() {
 
           <div className="protocol-list">
             {protocolRows.map((item, index) => (
-              <article key={item.protocol} className="protocol-row">
+              <article key={item.protocol} className="protocol-row protocol-row-chromatic">
                 <div className="protocol-row-head">
                   <span className="protocol-rank">{String(index + 1).padStart(2, "0")}</span>
                   <ProtocolMark protocol={item.protocol} size="lg" />
                   <div className="protocol-copy">
                     <strong>{item.protocol}</strong>
                     <p>
-                      {formatCount(item.reachableCount)} supported tokens in snapshot ·{" "}
-                      {formatShare(statusShare(item.reachableCount, allAssets.length))} of active universe
+                      <AnimatedNumber value={item.reachableCount} formatter={(current) => formatCount(Math.round(current))} />{" "}
+                      supported tokens in snapshot ·{" "}
+                      <AnimatedNumber
+                        value={statusShare(item.reachableCount, allAssets.length)}
+                        formatter={(current) => formatShare(current)}
+                      />{" "}
+                      of active universe
                     </p>
                   </div>
                 </div>
@@ -729,13 +853,25 @@ function App() {
                   <div className="protocol-metric">
                     <div className="protocol-metric-head">
                       <span>Collateral</span>
-                      <strong>{formatCount(item.collateralCount)}</strong>
-                      <span>{formatShare(statusShare(item.collateralCount, allAssets.length))}</span>
+                      <strong>
+                        <AnimatedNumber value={item.collateralCount} formatter={(current) => formatCount(Math.round(current))} />
+                      </strong>
+                      <span>
+                        <AnimatedNumber
+                          value={statusShare(item.collateralCount, allAssets.length)}
+                          formatter={(current) => formatShare(current)}
+                        />
+                      </span>
                     </div>
                     <div className="protocol-meter" aria-hidden="true">
                       <span
                         className="protocol-meter-fill collateral"
-                        style={{ width: `${statusShare(item.collateralCount, protocolMaxCollateral)}%` }}
+                        style={
+                          {
+                            width: `${statusShare(item.collateralCount, protocolMaxCollateral)}%`,
+                            "--segment-delay": `${120 + index * 70}ms`,
+                          } as CSSProperties
+                        }
                       />
                     </div>
                   </div>
@@ -743,13 +879,25 @@ function App() {
                   <div className="protocol-metric">
                     <div className="protocol-metric-head">
                       <span>Borrow</span>
-                      <strong>{formatCount(item.borrowCount)}</strong>
-                      <span>{formatShare(statusShare(item.borrowCount, allAssets.length))}</span>
+                      <strong>
+                        <AnimatedNumber value={item.borrowCount} formatter={(current) => formatCount(Math.round(current))} />
+                      </strong>
+                      <span>
+                        <AnimatedNumber
+                          value={statusShare(item.borrowCount, allAssets.length)}
+                          formatter={(current) => formatShare(current)}
+                        />
+                      </span>
                     </div>
                     <div className="protocol-meter" aria-hidden="true">
                       <span
                         className="protocol-meter-fill borrow"
-                        style={{ width: `${statusShare(item.borrowCount, protocolMaxBorrow)}%` }}
+                        style={
+                          {
+                            width: `${statusShare(item.borrowCount, protocolMaxBorrow)}%`,
+                            "--segment-delay": `${200 + index * 70}ms`,
+                          } as CSSProperties
+                        }
                       />
                     </div>
                   </div>
@@ -763,14 +911,15 @@ function App() {
           </p>
         </section>
 
-        <section className="surface table-panel" id="asset-table">
+        <section className="surface table-panel surface-table" id="asset-table">
           <div className="panel-topline">
             <div>
               <p className="eyebrow">Coverage table</p>
               <h2>Every active token that survived the dead-token filter</h2>
             </div>
             <span className="table-count">
-              Showing {formatCount(visibleAssets.length)} of {formatCount(filteredAssets.length)} assets
+              Showing <AnimatedNumber value={visibleAssets.length} formatter={(current) => formatCount(Math.round(current))} /> of{" "}
+              <AnimatedNumber value={filteredAssets.length} formatter={(current) => formatCount(Math.round(current))} /> assets
             </span>
           </div>
 
@@ -904,15 +1053,20 @@ function App() {
         </section>
 
         <section className="method-grid">
-          <article className="surface method-card">
+          <article className="surface method-card surface-method surface-method-a">
             <p className="eyebrow">Methodology</p>
             <h2>tokens.loans starts with the full Jupiter-indexed token universe, not a handpicked watchlist.</h2>
             <p>
-              {formatCount(universeMeta.indexedTokenCount)} indexed tokens flowed into the pipeline. {formatCount(universeMeta.candidateTokenCount)} made the live candidate set through verification, routeability, trending, traded, organic, or recent surfaces, and {formatCount(allAssets.length)} remained after the dead-token filter.
+              <AnimatedNumber value={universeMeta.indexedTokenCount} formatter={(current) => formatCount(Math.round(current))} />{" "}
+              indexed tokens flowed into the pipeline.{" "}
+              <AnimatedNumber value={universeMeta.candidateTokenCount} formatter={(current) => formatCount(Math.round(current))} />{" "}
+              made the live candidate set through verification, routeability, trending, traded, organic, or recent
+              surfaces, and <AnimatedNumber value={allAssets.length} formatter={(current) => formatCount(Math.round(current))} />{" "}
+              remained after the dead-token filter.
             </p>
           </article>
 
-          <article className="surface method-card">
+          <article className="surface method-card surface-method surface-method-b">
             <p className="eyebrow">Filter logic</p>
             <h2>Dead tokens are removed using current market activity, not manual taste.</h2>
             <p>{universeMeta.methodology}</p>
@@ -923,14 +1077,41 @@ function App() {
   );
 }
 
-function StatCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+function StatCard({
+  className = "",
+  label,
+  value,
+  formatter,
+  detail,
+}: {
+  className?: string;
+  label: string;
+  value: number;
+  formatter: (value: number) => string;
+  detail: string;
+}) {
   return (
-    <article className="surface stat-card">
+    <article className={`surface stat-card ${className}`.trim()}>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong>
+        <AnimatedNumber value={value} formatter={formatter} />
+      </strong>
       <p>{detail}</p>
     </article>
   );
+}
+
+function AnimatedNumber({
+  value,
+  formatter,
+  duration,
+}: {
+  value: number;
+  formatter: (value: number) => string;
+  duration?: number;
+}) {
+  const animatedValue = useAnimatedNumber(value, duration);
+  return <>{formatter(animatedValue)}</>;
 }
 
 export default App;
