@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "vercel-build": "npm run refresh-data && npm run build",
+    "vercel-build": "npm run build",
     "preview": "vite preview",
     "refresh-data": "node scripts/refresh-solana-universe.mjs"
   },
   "dependencies": {
+    "@upstash/redis": "^1.35.6",
+    "@vercel/functions": "^3.2.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
