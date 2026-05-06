@@ -1,13 +1,12 @@
-import rawSnapshot from "./generated/solana-active-universe.json";
 import type {
   AccessStatus,
   AssetRecord,
+  AssetSnapshotPayload,
   EnrichedAsset,
   ProtocolAccess,
   ProtocolName,
   SectorKey,
   TierKey,
-  UniverseSnapshot,
 } from "./types";
 
 export const protocolNames: ProtocolName[] = ["Kamino", "marginfi", "Save", "Drift", "Loopscale", "Omnipair"];
@@ -37,33 +36,29 @@ export const statusMeta: Record<
     label: "Borrow + collateral",
     short: "Both",
     color: "#7af0be",
-    description: "These assets have at least one borrow market and at least one collateral listing.",
+    description: "Listed for both collateral and borrowing on at least one tracked protocol.",
   },
   "collateral-only": {
     label: "Collateral only",
     short: "Collateral",
     color: "#42c4ff",
-    description: "Listed as collateral somewhere, but not yet broadly borrowable.",
+    description: "Accepted as collateral somewhere, without a tracked borrow listing in this snapshot.",
   },
   "borrow-only": {
     label: "Borrow only",
     short: "Borrow",
     color: "#ffc969",
-    description: "Available as debt in isolated markets, but not accepted as collateral in this snapshot.",
+    description: "Borrowable somewhere, without a tracked collateral listing in this snapshot.",
   },
   excluded: {
     label: "Excluded",
     short: "Excluded",
     color: "#1d2a27",
-    description: "Active on Solana, but still outside every tracked lending venue in this snapshot.",
+    description: "Active on Solana, but outside every tracked lending protocol in this snapshot.",
   },
 };
 
-const snapshot = rawSnapshot as UniverseSnapshot;
-
-export const universeMeta = snapshot.meta;
-
-function normalizeProtocols(protocols: Partial<Record<ProtocolName, ProtocolAccess>>): Record<ProtocolName, ProtocolAccess> {
+export function normalizeProtocols(protocols: Partial<Record<ProtocolName, ProtocolAccess>>): Record<ProtocolName, ProtocolAccess> {
   return {
     Kamino: protocols.Kamino ?? "none",
     marginfi: protocols.marginfi ?? "none",
@@ -74,11 +69,6 @@ function normalizeProtocols(protocols: Partial<Record<ProtocolName, ProtocolAcce
   };
 }
 
-export const assetUniverse: AssetRecord[] = snapshot.assets.map((asset) => ({
-  ...asset,
-  protocols: normalizeProtocols(asset.protocols),
-}));
-
 function accessHasCollateral(access: ProtocolAccess) {
   return access === "collateral" || access === "both";
 }
@@ -87,7 +77,7 @@ function accessHasBorrow(access: ProtocolAccess) {
   return access === "borrow" || access === "both";
 }
 
-function deriveStatus(collateralProtocols: ProtocolName[], borrowableProtocols: ProtocolName[]): AccessStatus {
+export function deriveStatus(collateralProtocols: ProtocolName[], borrowableProtocols: ProtocolName[]): AccessStatus {
   if (collateralProtocols.length && borrowableProtocols.length) {
     return "full-access";
   }
@@ -101,6 +91,13 @@ function deriveStatus(collateralProtocols: ProtocolName[], borrowableProtocols: 
   }
 
   return "excluded";
+}
+
+export function normalizeAssetRecord(asset: AssetRecord): AssetRecord {
+  return {
+    ...asset,
+    protocols: normalizeProtocols(asset.protocols),
+  };
 }
 
 export function enrichAsset(assetRecord: AssetRecord): EnrichedAsset {
@@ -125,4 +122,8 @@ export function enrichAsset(assetRecord: AssetRecord): EnrichedAsset {
     status,
     coverageScore,
   };
+}
+
+export function createEnrichedAssets(snapshot: AssetSnapshotPayload): EnrichedAsset[] {
+  return snapshot.assets.map((asset) => enrichAsset(normalizeAssetRecord(asset)));
 }

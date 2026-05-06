@@ -1,11 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
-const outputPath = path.join(projectRoot, "src", "generated", "solana-active-universe.json");
+const outputPath = path.join(projectRoot, ".cache", "solana-active-universe.json");
+const legacyOutputPath = path.join(projectRoot, "src", "generated", "solana-active-universe.json");
 const DEFAULT_JUPITER_PRICE_URL = "https://api.jup.ag/price/v3";
 const DEFAULT_JUPITER_LITE_PRICE_URL = "https://lite-api.jup.ag/price/v3";
 const DEFAULT_HELIUS_RPC_URL = "https://mainnet.helius-rpc.com/";
@@ -299,25 +300,71 @@ async function loadLocalEnv() {
   await loadEnvFile(".env");
 }
 
+async function readSnapshotFile(snapshotPath) {
+  try {
+    const file = await readFile(snapshotPath, "utf8");
+    return JSON.parse(file);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function loadPreviousAssets() {
+  const snapshots = await Promise.all([readSnapshotFile(legacyOutputPath), readSnapshotFile(outputPath)]);
+  const previousAssets = new Map();
+
+  for (const snapshot of snapshots) {
+    for (const asset of snapshot?.assets ?? []) {
+      if (!asset?.address) {
+        continue;
+      }
+
+      const current = previousAssets.get(asset.address);
+
+      if (!current) {
+        previousAssets.set(asset.address, asset);
+        continue;
+      }
+
+      previousAssets.set(asset.address, {
+        ...current,
+        ...asset,
+        iconUrl: current.iconUrl ?? asset.iconUrl ?? null,
+        iconSource: current.iconSource ?? asset.iconSource ?? null,
+        priceUsd: current.priceUsd ?? asset.priceUsd ?? null,
+        priceChange24h: current.priceChange24h ?? asset.priceChange24h ?? null,
+        priceBlockId: current.priceBlockId ?? asset.priceBlockId ?? null,
+        priceSource: current.priceSource ?? asset.priceSource ?? null,
+      });
+    }
+  }
+
+  return previousAssets;
+}
+
 function buildNote(token, protocols) {
   const collateral = protocolNames.filter((protocol) => protocols[protocol] === "collateral" || protocols[protocol] === "both");
   const borrow = protocolNames.filter((protocol) => protocols[protocol] === "borrow" || protocols[protocol] === "both");
   const status = deriveStatus(protocols);
-  const marketSentence = `${compactNumber(token.holderCount)} holders and ${compactUsd(token.liquidityUsd)} liquidity`;
+  const marketSentence = `${compactNumber(token.holderCount)} holders • ${compactUsd(token.liquidityUsd)} liquidity`;
 
   if (status === "full-access") {
-    return `${marketSentence}; one of the rare Solana assets accepted in both collateral and borrow flows across tracked venues.`;
+    return `${marketSentence}. Listed for collateral and borrowing across tracked protocols.`;
   }
 
   if (status === "collateral-only") {
-    return `${marketSentence}; accepted as collateral on ${collateral.join(", ")}, but still not broadly borrowable.`;
+    return `${marketSentence}. Collateral on ${collateral.join(", ")}. No tracked borrow listing.`;
   }
 
   if (status === "borrow-only") {
-    return `${marketSentence}; visible in isolated borrow venues on ${borrow.join(", ")}, but not accepted as collateral.`;
+    return `${marketSentence}. Borrow listing on ${borrow.join(", ")}. No tracked collateral listing.`;
   }
 
-  return `${marketSentence}; active on Solana, but excluded from every tracked lending venue.`;
+  return `${marketSentence}. No tracked collateral or borrow listing.`;
 }
 
 function canonicalScore(meta, details) {
@@ -610,7 +657,11 @@ async function fetchTokenEnrichments(tokenAddresses, options) {
   };
 }
 
-async function main() {
+export async function fetchSolanaAssetSnapshot({
+  source = "Live Jupiter + protocol snapshot",
+  mode = "live",
+  warnings = [],
+} = {}) {
   await loadLocalEnv();
 
   const heliusApiKey = process.env.HELIUS_API_KEY;
@@ -835,12 +886,14 @@ async function main() {
     );
   });
 
+  const previousAssets = await loadPreviousAssets();
   const { metadataByAddress, pricesByAddress } = await fetchTokenEnrichments(
     filteredAssets.map((asset) => asset.address),
     { heliusApiKey, heliusRpcUrl, jupiterApiKey, jupiterPriceUrl },
   );
 
   const assets = filteredAssets.map((asset, index) => {
+    const previousAsset = previousAssets.get(asset.address);
     const tokenMetadata = metadataByAddress.get(asset.address);
     const tokenPrice = pricesByAddress.get(asset.address);
 
@@ -848,12 +901,13 @@ async function main() {
       address: asset.address,
       symbol: asset.symbol,
       name: asset.name,
-      iconUrl: tokenMetadata?.iconUrl ?? null,
-      iconSource: tokenMetadata?.iconUrl ? "helius" : null,
-      priceUsd: tokenPrice?.priceUsd ?? null,
-      priceChange24h: tokenPrice?.priceChange24h ?? null,
-      priceBlockId: tokenPrice?.priceBlockId ?? null,
-      priceSource: tokenPrice?.priceUsd !== null && tokenPrice?.priceUsd !== undefined ? "jupiter" : null,
+      iconUrl: tokenMetadata?.iconUrl ?? previousAsset?.iconUrl ?? null,
+      iconSource: tokenMetadata?.iconUrl ? "helius" : previousAsset?.iconSource ?? null,
+      priceUsd: tokenPrice?.priceUsd ?? previousAsset?.priceUsd ?? null,
+      priceChange24h: tokenPrice?.priceChange24h ?? previousAsset?.priceChange24h ?? null,
+      priceBlockId: tokenPrice?.priceBlockId ?? previousAsset?.priceBlockId ?? null,
+      priceSource:
+        tokenPrice?.priceUsd !== null && tokenPrice?.priceUsd !== undefined ? "jupiter" : previousAsset?.priceSource ?? null,
       sector: asset.sector,
       tier: asset.tier,
       marketRank: index + 1,
@@ -870,7 +924,10 @@ async function main() {
     };
   });
 
-  const payload = {
+  return {
+    mode,
+    source,
+    warnings,
     meta: {
       generatedAt: new Date().toISOString(),
       indexedTokenCount: indexedTokens.length,
@@ -894,16 +951,67 @@ async function main() {
     },
     assets,
   };
+}
 
-  await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
+export async function readStaticSnapshot(snapshotPath = outputPath) {
+  const snapshot = await readSnapshotFile(snapshotPath);
+
+  if (!snapshot) {
+    throw new Error(`Snapshot file not found: ${snapshotPath}`);
+  }
+
+  return snapshot;
+}
+
+export async function writeStaticSnapshot(snapshotPath = outputPath) {
+  let payload;
+
+  try {
+    payload = await fetchSolanaAssetSnapshot({
+      mode: "snapshot",
+      source: "Bundled snapshot",
+      warnings: [],
+    });
+  } catch (error) {
+    const fallbackSnapshot = (await readSnapshotFile(legacyOutputPath)) ?? (await readSnapshotFile(snapshotPath));
+
+    if (!fallbackSnapshot) {
+      throw error;
+    }
+
+    payload = {
+      ...fallbackSnapshot,
+      mode: "snapshot",
+      source: fallbackSnapshot.source ?? "Bundled snapshot",
+      warnings: [
+        ...(fallbackSnapshot.warnings ?? []),
+        "Live snapshot refresh failed, so the previous bundled snapshot was kept.",
+        error instanceof Error ? error.message : "Unknown live refresh error.",
+      ],
+      meta: {
+        ...fallbackSnapshot.meta,
+        generatedAt: fallbackSnapshot.meta?.generatedAt ?? new Date().toISOString(),
+      },
+    };
+  }
+
+  await mkdir(path.dirname(snapshotPath), { recursive: true });
+  await writeFile(snapshotPath, `${JSON.stringify(payload, null, 2)}\n`);
+
+  return payload;
+}
+
+async function main() {
+  const payload = await writeStaticSnapshot(outputPath);
 
   console.log(
-    `Wrote ${assets.length.toLocaleString()} active Solana tokens from ${indexedTokens.length.toLocaleString()} indexed Jupiter tokens to ${outputPath}`,
+    `Wrote ${payload.meta.activeTokenCount.toLocaleString()} active Solana tokens from ${payload.meta.indexedTokenCount.toLocaleString()} indexed Jupiter tokens to ${outputPath}`,
   );
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

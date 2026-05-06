@@ -48,14 +48,21 @@ export type EnrichedAsset = AssetRecord & {
   coverageScore: number;
 };
 
-export type UniverseSnapshot = {
-  meta: {
-    generatedAt: string;
-    indexedTokenCount: number;
-    candidateTokenCount: number;
-    activeTokenCount: number;
-    sources: string[];
-    methodology: string;
-  };
+export type AssetSnapshotMode = "live" | "partial" | "snapshot";
+
+export type AssetSnapshotMeta = {
+  generatedAt: string;
+  indexedTokenCount: number;
+  candidateTokenCount: number;
+  activeTokenCount: number;
+  sources: string[];
+  methodology: string;
+};
+
+export type AssetSnapshotPayload = {
+  mode: AssetSnapshotMode;
+  source: string;
+  warnings?: string[];
+  meta: AssetSnapshotMeta;
   assets: AssetRecord[];
 };
