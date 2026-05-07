@@ -1,6 +1,5 @@
 import { Redis } from "@upstash/redis";
 import { waitUntil } from "@vercel/functions";
-// @ts-expect-error Server route imports the live snapshot builder from a runtime-authored .mjs module.
 import { fetchSolanaAssetSnapshot } from "../scripts/refresh-solana-universe.mjs";
 import type { AssetSnapshotPayload } from "../src/types";
 
@@ -457,7 +456,7 @@ async function getRedisBackedSnapshot() {
   }
 }
 
-async function getSnapshot() {
+export async function getSnapshot() {
   if (isLocalDevelopment() && !isRedisConfigured()) {
     return getLocalSnapshot();
   }
